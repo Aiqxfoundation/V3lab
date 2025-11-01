@@ -72,7 +72,7 @@ export default function MainLayout({ children, currentChainId }: MainLayoutProps
   };
 
   return (
-    <div className="min-h-screen bg-[#05080d]">
+    <div className="min-h-screen bg-background dark:bg-background">
       {/* Slide-out Menu */}
       <MobileMenu 
         isOpen={menuOpen}
@@ -91,35 +91,37 @@ export default function MainLayout({ children, currentChainId }: MainLayoutProps
 
       {/* Full Width Layout */}
       <div className="w-full">
-        {/* Clean Top Header Bar */}
-        <div className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30 backdrop-blur-md bg-opacity-95">
+        {/* Professional Header Bar with Glass Effect */}
+        <div className="h-16 dark:bg-card/80 bg-card/95 border-b dark:border-border border-border/50 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30 backdrop-blur-xl backdrop-saturate-150 premium-shadow">
           <div className="flex items-center gap-3">
             {/* Hamburger Menu Button */}
             <button
               onClick={() => setMenuOpen(true)}
-              className="p-2 rounded-lg hover:bg-gray-800 transition-all hover:scale-105 active:scale-95"
+              className="p-2 rounded-xl dark:hover:bg-primary/10 hover:bg-primary/5 transition-all hover:scale-105 active:scale-95"
               data-testid="button-open-menu"
             >
-              <Menu className="h-5 w-5 text-gray-300" />
+              <Menu className="h-5 w-5 dark:text-foreground text-foreground" />
             </button>
 
-            {/* Logo with Animation */}
-            <div className="flex items-center gap-2 group">
-              <div className="h-8 w-8 rounded-lg bg-[#00d4ff] flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2L2 7L12 12L22 7L12 2Z" />
-                  <path d="M2 17L12 22L22 17V12L12 17L2 12V17Z" opacity="0.7" />
-                </svg>
+            {/* Premium Logo with Gradient */}
+            <Link href="/">
+              <div className="flex items-center gap-2 group cursor-pointer">
+                <div className="h-9 w-9 rounded-xl gradient-ai flex items-center justify-center group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-primary/50 transition-all duration-300">
+                  <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2L2 7L12 12L22 7L12 2Z" />
+                    <path d="M2 17L12 22L22 17V12L12 17L2 12V17Z" opacity="0.7" />
+                  </svg>
+                </div>
+                <span className="text-base font-bold gradient-ai-text hidden sm:block">
+                  AIQX Labs
+                </span>
               </div>
-              <span className="text-base font-semibold text-white hidden sm:block">
-                AIQX Labs
-              </span>
-            </div>
+            </Link>
 
             {/* Chain Switcher */}
             {!chain && (
               <>
-                <div className="h-5 w-px bg-gray-700 mx-2 hidden lg:block" />
+                <div className="h-5 w-px bg-border mx-2 hidden lg:block" />
                 <div className="hidden lg:block">
                   <ChainSwitcher />
                 </div>
@@ -129,10 +131,10 @@ export default function MainLayout({ children, currentChainId }: MainLayoutProps
             {/* Chain Info - only on chain pages */}
             {chain && (
               <>
-                <div className="h-5 w-px bg-gray-700 mx-2 hidden sm:block" />
+                <div className="h-5 w-px bg-border mx-2 hidden sm:block" />
                 <div className="hidden sm:flex items-center gap-2">
-                  <chain.icon className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm font-medium text-gray-300">
+                  <chain.icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">
                     {chain.displayName}
                   </span>
                 </div>
@@ -140,13 +142,13 @@ export default function MainLayout({ children, currentChainId }: MainLayoutProps
                 {/* Chain Tools Dropdown */}
                 {chain.tools && chain.tools.length > 0 && (
                   <>
-                    <div className="h-5 w-px bg-gray-700 mx-2 hidden md:block" />
+                    <div className="h-5 w-px bg-border mx-2 hidden md:block" />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="hidden md:flex gap-2 text-gray-300 hover:text-white hover:bg-gray-800"
+                          className="hidden md:flex gap-2 text-foreground hover:text-primary hover:bg-primary/10"
                           data-testid="button-tools-menu"
                         >
                           <Wrench className="h-4 w-4" />
@@ -215,7 +217,7 @@ export default function MainLayout({ children, currentChainId }: MainLayoutProps
               <Button
                 variant="ghost"
                 size="sm"
-                className="hidden md:flex gap-2 text-gray-300 hover:text-white hover:bg-gray-800"
+                className="hidden md:flex gap-2 text-foreground hover:text-primary hover:bg-primary/10"
                 data-testid="button-dashboard"
               >
                 <BarChart3 className="h-4 w-4" />
@@ -226,7 +228,7 @@ export default function MainLayout({ children, currentChainId }: MainLayoutProps
               <Button
                 variant="ghost"
                 size="sm"
-                className="hidden md:flex gap-2 text-gray-300 hover:text-white hover:bg-gray-800"
+                className="hidden md:flex gap-2 text-foreground hover:text-primary hover:bg-primary/10"
                 data-testid="button-help"
               >
                 <BookOpen className="h-4 w-4" />
@@ -252,7 +254,7 @@ export default function MainLayout({ children, currentChainId }: MainLayoutProps
             {/* Wallet Connection Button */}
             {!isConnected ? (
               <Button 
-                className="bg-[#00d4ff] hover:bg-[#00b8e6] text-white text-sm font-medium px-4 transition-all hover:scale-105 active:scale-95"
+                className="gradient-ai text-white hover:opacity-90 text-sm font-bold px-4 transition-all hover:scale-105 active:scale-95 shadow-lg"
                 size="sm"
                 onClick={() => setShowWalletModal(true)}
                 disabled={!chainType}
@@ -322,10 +324,10 @@ export default function MainLayout({ children, currentChainId }: MainLayoutProps
               <Button
                 variant="ghost"
                 size="icon"
-                className="hidden sm:flex hover:bg-gray-800 transition-all hover:scale-105 active:scale-95"
+                className="hidden sm:flex hover:bg-primary/10 transition-all hover:scale-105 active:scale-95"
                 data-testid="button-settings"
               >
-                <Settings className="h-4 w-4 text-gray-400" />
+                <Settings className="h-4 w-4 text-muted-foreground hover:text-primary" />
               </Button>
             </Link>
             <ThemeToggle />
