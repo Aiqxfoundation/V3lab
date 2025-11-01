@@ -1,4 +1,4 @@
-import { type DeployedToken, type InsertDeployedToken, deployedTokens } from "@shared/schema";
+import { type DeployedToken, type InsertDeployedToken, deployedTokens, type User, type InsertUser, users } from "@shared/schema";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { eq, desc } from "drizzle-orm";
 import { Pool, neonConfig } from "@neondatabase/serverless";
@@ -12,6 +12,10 @@ export interface IStorage {
   getDeployedTokens(): Promise<DeployedToken[]>;
   getDeployedTokenById(id: string): Promise<DeployedToken | undefined>;
   updateDeployedToken(id: string, updates: Partial<DeployedToken>): Promise<DeployedToken | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByAccessKey(accessKey: string): Promise<User | undefined>;
+  updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -55,6 +59,44 @@ export class DbStorage implements IStorage {
       .update(deployedTokens)
       .set(updates)
       .where(eq(deployedTokens.id, id))
+      .returning();
+    return updated;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await this.db
+      .insert(users)
+      .values(insertUser)
+      .returning();
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.username, username))
+      .limit(1);
+    return user;
+  }
+
+  async getUserByAccessKey(accessKey: string): Promise<User | undefined> {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.hashedAccessKey, accessKey))
+      .limit(1);
+    return user;
+  }
+
+  async updateUser(
+    id: string,
+    updates: Partial<User>
+  ): Promise<User | undefined> {
+    const [updated] = await this.db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
       .returning();
     return updated;
   }

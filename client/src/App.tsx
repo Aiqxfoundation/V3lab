@@ -9,6 +9,7 @@ import { ChainProvider } from "@/contexts/ChainContext";
 import { EvmWalletProvider } from "@/contexts/EvmWalletContext";
 import { SolanaWalletProvider } from "@/contexts/SolanaWalletContext";
 import { TransactionProvider } from "@/contexts/TransactionContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { ChainSwitchHandler } from "@/components/ChainSwitchHandler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import NotFound from "@/pages/not-found";
@@ -24,6 +25,8 @@ const HelpPage = lazy(() => import("@/pages/help"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const DashboardPage = lazy(() => import("@/pages/dashboard"));
 const WalletDiagnostics = lazy(() => import("@/pages/wallet-diagnostics"));
+const AdvancedFeatures = lazy(() => import("@/pages/advanced-features"));
+const LoginPage = lazy(() => import("@/pages/auth/login"));
 
 // Solana-specific tool pages
 const SolanaMint = lazy(() => import("@/pages/solana-mint"));
@@ -63,6 +66,10 @@ function Router() {
     <Suspense fallback={<PageLoading />}>
       <Switch>
         <Route path="/" component={Home} />
+        
+        {/* Advanced Features & Authentication */}
+        <Route path="/advanced-features" component={AdvancedFeatures} />
+        <Route path="/auth/login" component={LoginPage} />
         
         {/* Help & Management */}
         <Route path="/help" component={HelpPage} />
@@ -106,17 +113,19 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="dark">
           <TooltipProvider>
-            <ChainProvider>
-              <TransactionProvider>
-                <EvmWalletProvider>
-                  <SolanaWalletProvider>
-                    <ChainSwitchHandler />
-                    <Router />
-                    <Toaster />
-                  </SolanaWalletProvider>
-                </EvmWalletProvider>
-              </TransactionProvider>
-            </ChainProvider>
+            <AuthProvider>
+              <ChainProvider>
+                <TransactionProvider>
+                  <EvmWalletProvider>
+                    <SolanaWalletProvider>
+                      <ChainSwitchHandler />
+                      <Router />
+                      <Toaster />
+                    </SolanaWalletProvider>
+                  </EvmWalletProvider>
+                </TransactionProvider>
+              </ChainProvider>
+            </AuthProvider>
           </TooltipProvider>
         </ThemeProvider>
       </QueryClientProvider>

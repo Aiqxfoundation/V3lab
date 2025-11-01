@@ -2,13 +2,10 @@ import { useParams, Link } from "wouter";
 import MainLayout from "@/components/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { getChainConfig } from "@/config/chains";
 import { lazy, Suspense } from "react";
 
-const EthereumOverview = lazy(() => import("@/pages/overviews/ethereum-overview"));
-const BnbOverview = lazy(() => import("@/pages/overviews/bnb-overview"));
-const SolanaOverview = lazy(() => import("@/pages/overviews/solana-overview"));
+const UnifiedChainOverview = lazy(() => import("@/pages/overviews/unified-chain-overview"));
 
 export default function ChainOverview() {
   const params = useParams();
@@ -38,21 +35,6 @@ export default function ChainOverview() {
     );
   }
 
-  // Determine which overview component to render based on chain
-  let OverviewComponent;
-  const baseChain = chainId.split('-')[0]; // ethereum, bsc, solana
-  
-  if (baseChain === 'ethereum' || chainId.includes('sepolia')) {
-    OverviewComponent = EthereumOverview;
-  } else if (baseChain === 'bsc') {
-    OverviewComponent = BnbOverview;
-  } else if (baseChain === 'solana') {
-    OverviewComponent = SolanaOverview;
-  } else {
-    // Fallback generic overview
-    OverviewComponent = EthereumOverview;
-  }
-
   return (
     <MainLayout currentChainId={chainId}>
       <Suspense fallback={
@@ -67,7 +49,7 @@ export default function ChainOverview() {
           </div>
         </div>
       }>
-        <OverviewComponent chainId={chainId} chain={chain} />
+        <UnifiedChainOverview chainId={chainId} chain={chain} />
       </Suspense>
     </MainLayout>
   );

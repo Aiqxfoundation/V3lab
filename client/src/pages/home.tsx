@@ -147,19 +147,18 @@ export default function Home() {
                     <ArrowRight className="h-6 w-6 ml-2" />
                   </Button>
                 </Link>
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="border-cyan-500/30 bg-cyan-500/5 text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-500/50 px-10 py-7 text-lg font-semibold"
-                  data-testid="button-join-advanced"
-                  onClick={() => {
-                    const section = document.getElementById('blockchain-selection');
-                    section?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                >
-                  <Shield className="h-6 w-6 mr-2" />
-                  Join Advanced Features
-                </Button>
+                <Link href="/advanced-features">
+                  <Button 
+                    size="lg" 
+                    variant="outline" 
+                    className="border-purple-500/30 bg-gradient-to-r from-purple-500/10 to-pink-500/10 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50 px-10 py-7 text-lg font-semibold"
+                    data-testid="button-join-advanced"
+                  >
+                    <Gem className="h-6 w-6 mr-2" />
+                    Join Advanced Features
+                    <Star className="h-5 w-5 ml-2" />
+                  </Button>
+                </Link>
               </motion.div>
 
               {/* Stats */}

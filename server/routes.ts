@@ -5,6 +5,7 @@ import { tokenCreationSchema, SUPPORTED_CHAINS, type ChainId } from "@shared/sch
 import { compileContract, getContractNameForType } from "./utils/contract-compiler";
 import { deployTokenContract, estimateGasCost } from "./utils/deployer";
 import { ethers } from "ethers";
+import crypto from "crypto";
 
 async function handleTokenDeployment(req: any, res: any) {
     try {
@@ -417,6 +418,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('RPC proxy error:', error);
       res.status(500).json({ error: 'RPC request failed' });
+    }
+  });
+
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { username, walletAddress, network } = req.body;
+
+      if (!username || !walletAddress || !network) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      if (username.length < 3) {
+        return res.status(400).json({ error: "Username must be at least 3 characters" });
+      }
+
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      const accessKey = crypto
+        .createHash('sha256')
+        .update(`${username}-${walletAddress}-${Date.now()}`)
+        .digest('hex');
+
+      const user = await storage.createUser({
+        username,
+        primaryWallet: walletAddress,
+        hashedAccessKey: accessKey,
+        isVerified: true,
+        email: null,
+        role: "user",
+        lastLoginAt: null
+      });
+
+      res.json({
+        success: true,
+        accessKey,
+        userId: user.id,
+        message: "Verification complete"
+      });
+    } catch (error: any) {
+      console.error('Auth error:', error);
+      res.status(500).json({ error: 'Authentication failed' });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, walletAddress } = req.body;
+
+      if (!username || !walletAddress) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (user.primaryWallet !== walletAddress) {
+        return res.status(401).json({ error: "Wallet address does not match" });
+      }
+
+      if (!user.hashedAccessKey) {
+        return res.status(500).json({ error: "No access key found for user" });
+      }
+
+      res.json({
+        success: true,
+        accessKey: user.hashedAccessKey,
+        userId: user.id,
+        message: "Login successful"
+      });
+    } catch (error: any) {
+      console.error('Login error:', error);
+      res.status(500).json({ error: 'Login failed' });
+    }
+  });
+
+  app.get("/api/auth/verify", async (req, res) => {
+    try {
+      const accessKey = req.headers.authorization?.replace('Bearer ', '');
+      
+      if (!accessKey) {
+        return res.status(401).json({ error: "No access key provided" });
+      }
+
+      const user = await storage.getUserByAccessKey(accessKey);
+      
+      if (!user) {
+        return res.status(401).json({ error: "Invalid access key" });
+      }
+
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          username: user.username,
+          isVerified: user.isVerified
+        }
+      });
+    } catch (error: any) {
+      console.error('Verification error:', error);
+      res.status(500).json({ error: 'Verification failed' });
     }
   });
 
