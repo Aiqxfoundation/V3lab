@@ -327,6 +327,3 @@ export default function BnbOverview({ chainId, chain }: any) {
     </div>
   );
 }
-              <div className="text-3xl font-bold text-yellow-300">3s</div>
-              <div className="text-sm text-gray-300 mt-1">Block Time</div>
-            </Card>
