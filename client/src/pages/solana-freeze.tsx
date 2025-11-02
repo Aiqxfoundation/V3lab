@@ -173,15 +173,18 @@ export default function SolanaFreezeAccount() {
               )}
 
               <div>
-                <Label htmlFor="freeze-account" className="text-white">Account to Freeze</Label>
+                <Label htmlFor="freeze-account" className="text-white">Holder Wallet Address or Token Account</Label>
                 <Input
                   id="freeze-account"
                   value={accountAddress}
                   onChange={(e) => setAccountAddress(e.target.value)}
-                  placeholder="Enter account address"
+                  placeholder="Enter wallet address or token account address"
                   className="bg-gray-900 border-gray-700 text-white"
                   data-testid="input-freeze-account"
                 />
+                <p className="text-xs text-gray-400 mt-1">
+                  You can enter either the holder's wallet address or their specific token account address
+                </p>
               </div>
 
               <Button
@@ -242,15 +245,18 @@ export default function SolanaFreezeAccount() {
               )}
 
               <div>
-                <Label htmlFor="unfreeze-account" className="text-white">Account to Unfreeze</Label>
+                <Label htmlFor="unfreeze-account" className="text-white">Holder Wallet Address or Token Account</Label>
                 <Input
                   id="unfreeze-account"
                   value={accountAddress}
                   onChange={(e) => setAccountAddress(e.target.value)}
-                  placeholder="Enter account address"
+                  placeholder="Enter wallet address or token account address"
                   className="bg-gray-900 border-gray-700 text-white"
                   data-testid="input-unfreeze-account"
                 />
+                <p className="text-xs text-gray-400 mt-1">
+                  You can enter either the holder's wallet address or their specific token account address
+                </p>
               </div>
 
               <Button
