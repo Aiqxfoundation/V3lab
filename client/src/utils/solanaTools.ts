@@ -250,29 +250,61 @@ export async function freezeTokenAccount(
   accountToFreeze: string,
   signTransaction: (transaction: Transaction) => Promise<Transaction>
 ): Promise<string> {
-  const mint = new PublicKey(mintAddress);
-  const account = new PublicKey(accountToFreeze);
-  const transaction = new Transaction();
+  try {
+    const mint = new PublicKey(mintAddress);
+    const account = new PublicKey(accountToFreeze);
+    
+    // Validate the token account exists and belongs to the correct mint
+    try {
+      const accountInfo = await getAccount(connection, account);
+      if (accountInfo.mint.toBase58() !== mint.toBase58()) {
+        throw new Error('Token account does not belong to the specified mint');
+      }
+      if (accountInfo.isFrozen) {
+        throw new Error('Token account is already frozen');
+      }
+    } catch (error: any) {
+      if (error.message.includes('does not belong') || error.message.includes('already frozen')) {
+        throw error;
+      }
+      throw new Error('Invalid token account address. Please verify the account exists and is a valid SPL token account.');
+    }
+    
+    // Validate the mint has freeze authority
+    const mintInfo = await getMint(connection, mint);
+    if (!mintInfo.freezeAuthority) {
+      throw new Error('This token does not have freeze authority enabled');
+    }
+    
+    if (mintInfo.freezeAuthority.toBase58() !== payer.toBase58()) {
+      throw new Error(`You are not the freeze authority for this token. Freeze authority: ${mintInfo.freezeAuthority.toBase58().slice(0, 8)}...`);
+    }
 
-  transaction.add(
-    createFreezeAccountInstruction(
-      account,
-      mint,
-      payer
-    )
-  );
+    const transaction = new Transaction();
 
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-  transaction.recentBlockhash = blockhash;
-  transaction.feePayer = payer;
+    transaction.add(
+      createFreezeAccountInstruction(
+        account,
+        mint,
+        payer
+      )
+    );
 
-  const signedTx = await signTransaction(transaction);
-  const signature = await connection.sendRawTransaction(signedTx.serialize());
-  console.log('✅ Freeze account transaction sent! Signature:', signature);
-  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight });
-  console.log('✅ Freeze account confirmed! Signature:', signature);
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = payer;
 
-  return signature;
+    const signedTx = await signTransaction(transaction);
+    const signature = await connection.sendRawTransaction(signedTx.serialize());
+    console.log('✅ Freeze account transaction sent! Signature:', signature);
+    await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight });
+    console.log('✅ Freeze account confirmed! Signature:', signature);
+
+    return signature;
+  } catch (error: any) {
+    console.error('Error freezing account:', error);
+    throw new Error(error.message || 'Failed to freeze token account');
+  }
 }
 
 /**
@@ -285,29 +317,61 @@ export async function unfreezeTokenAccount(
   accountToUnfreeze: string,
   signTransaction: (transaction: Transaction) => Promise<Transaction>
 ): Promise<string> {
-  const mint = new PublicKey(mintAddress);
-  const account = new PublicKey(accountToUnfreeze);
-  const transaction = new Transaction();
+  try {
+    const mint = new PublicKey(mintAddress);
+    const account = new PublicKey(accountToUnfreeze);
+    
+    // Validate the token account exists and belongs to the correct mint
+    try {
+      const accountInfo = await getAccount(connection, account);
+      if (accountInfo.mint.toBase58() !== mint.toBase58()) {
+        throw new Error('Token account does not belong to the specified mint');
+      }
+      if (!accountInfo.isFrozen) {
+        throw new Error('Token account is not frozen');
+      }
+    } catch (error: any) {
+      if (error.message.includes('does not belong') || error.message.includes('not frozen')) {
+        throw error;
+      }
+      throw new Error('Invalid token account address. Please verify the account exists and is a valid SPL token account.');
+    }
+    
+    // Validate the mint has freeze authority
+    const mintInfo = await getMint(connection, mint);
+    if (!mintInfo.freezeAuthority) {
+      throw new Error('This token does not have freeze authority enabled');
+    }
+    
+    if (mintInfo.freezeAuthority.toBase58() !== payer.toBase58()) {
+      throw new Error(`You are not the freeze authority for this token. Freeze authority: ${mintInfo.freezeAuthority.toBase58().slice(0, 8)}...`);
+    }
 
-  transaction.add(
-    createThawAccountInstruction(
-      account,
-      mint,
-      payer
-    )
-  );
+    const transaction = new Transaction();
 
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-  transaction.recentBlockhash = blockhash;
-  transaction.feePayer = payer;
+    transaction.add(
+      createThawAccountInstruction(
+        account,
+        mint,
+        payer
+      )
+    );
 
-  const signedTx = await signTransaction(transaction);
-  const signature = await connection.sendRawTransaction(signedTx.serialize());
-  console.log('✅ Unfreeze account transaction sent! Signature:', signature);
-  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight });
-  console.log('✅ Unfreeze account confirmed! Signature:', signature);
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = payer;
 
-  return signature;
+    const signedTx = await signTransaction(transaction);
+    const signature = await connection.sendRawTransaction(signedTx.serialize());
+    console.log('✅ Unfreeze account transaction sent! Signature:', signature);
+    await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight });
+    console.log('✅ Unfreeze account confirmed! Signature:', signature);
+
+    return signature;
+  } catch (error: any) {
+    console.error('Error unfreezing account:', error);
+    throw new Error(error.message || 'Failed to unfreeze token account');
+  }
 }
 
 /**
