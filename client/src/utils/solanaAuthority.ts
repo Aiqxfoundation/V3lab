@@ -147,7 +147,9 @@ export async function revokeUpdateAuthority(
   signTransaction: (transaction: Transaction) => Promise<Transaction>
 ): Promise<string> {
   try {
-    const { SystemProgram } = await import('@solana/web3.js');
+    const { Metadata } = await import('@metaplex-foundation/mpl-token-metadata');
+    const { TransactionInstruction } = await import('@solana/web3.js');
+    
     const mintPubkey = new PublicKey(mintAddress);
     
     const TOKEN_METADATA_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
@@ -161,28 +163,30 @@ export async function revokeUpdateAuthority(
       TOKEN_METADATA_PROGRAM_ID
     );
     
-    const transaction = new Transaction();
+    const updateMetadataAccountV2InstructionDiscriminator = Buffer.from([
+      15,
+    ]);
     
-    const updateAuthorityKeys = [
+    const updateMetadataData = Buffer.concat([
+      updateMetadataAccountV2InstructionDiscriminator,
+      Buffer.from([0]),
+      Buffer.from([0]),
+      Buffer.from([1]),
+      Buffer.from([1]),
+    ]);
+    
+    const keys = [
       { pubkey: metadataPDA, isSigner: false, isWritable: true },
       { pubkey: currentAuthority, isSigner: true, isWritable: false },
     ];
     
-    const updateAuthorityData = Buffer.concat([
-      Buffer.from([1]),
-      Buffer.from([0]),
-      Buffer.from([1]),
-      Buffer.from(new PublicKey('11111111111111111111111111111111').toBuffer()),
-      Buffer.from([0]),
-    ]);
-    
-    const updateAuthorityInstruction = {
-      keys: updateAuthorityKeys,
+    const updateMetadataInstruction = new TransactionInstruction({
+      keys,
       programId: TOKEN_METADATA_PROGRAM_ID,
-      data: updateAuthorityData,
-    };
+      data: updateMetadataData,
+    });
     
-    transaction.add(updateAuthorityInstruction);
+    const transaction = new Transaction().add(updateMetadataInstruction);
     
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
     transaction.recentBlockhash = blockhash;
