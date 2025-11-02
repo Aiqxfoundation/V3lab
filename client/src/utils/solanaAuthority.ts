@@ -150,7 +150,6 @@ export async function revokeUpdateAuthority(
     const { createUpdateMetadataAccountV2Instruction } = await import('@metaplex-foundation/mpl-token-metadata');
     
     const mintPubkey = new PublicKey(mintAddress);
-    
     const TOKEN_METADATA_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
     
     const [metadataPDA] = PublicKey.findProgramAddressSync(
@@ -162,37 +161,51 @@ export async function revokeUpdateAuthority(
       TOKEN_METADATA_PROGRAM_ID
     );
     
-    const updateMetadataInstruction = createUpdateMetadataAccountV2Instruction(
-      {
-        metadata: metadataPDA,
-        updateAuthority: currentAuthority,
-      },
-      {
-        updateMetadataAccountArgsV2: {
-          data: null,
-          updateAuthority: null,
-          primarySaleHappened: null,
-          isMutable: false,
-        },
+    const metadataAccount = await connection.getAccountInfo(metadataPDA);
+    if (!metadataAccount) {
+      throw new Error('Metadata account not found. Make sure this token has Metaplex metadata.');
+    }
+    
+    console.log('Creating revoke update authority instruction...');
+    const accounts = {
+      metadata: metadataPDA,
+      updateAuthority: currentAuthority,
+    };
+    
+    const args = {
+      updateMetadataAccountArgsV2: {
+        data: null,
+        updateAuthority: null,
+        primarySaleHappened: null,
+        isMutable: null,
       }
+    };
+    
+    const instruction = createUpdateMetadataAccountV2Instruction(
+      accounts,
+      args
     );
     
-    const transaction = new Transaction().add(updateMetadataInstruction);
+    const transaction = new Transaction().add(instruction);
     
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = currentAuthority;
     
+    console.log('Signing transaction...');
     const signedTx = await signTransaction(transaction);
+    
+    console.log('Sending transaction...');
     const signature = await connection.sendRawTransaction(signedTx.serialize());
     
+    console.log('Confirming transaction...');
     await connection.confirmTransaction({
       signature,
       blockhash,
       lastValidBlockHeight,
     });
     
-    console.log('Update authority revoked. Signature:', signature);
+    console.log('Update authority revoked successfully. Signature:', signature);
     return signature;
   } catch (error) {
     console.error('Error revoking update authority:', error);
