@@ -31,8 +31,8 @@ export default function SolanaAuthorityTools() {
   const network = getNetworkFromChainId(chainId);
   const [loading, setLoading] = useState(false);
   
-  const [revokeMint, setRevokeMint] = useState('');
-  const [revokeType, setRevokeType] = useState<AuthorityType>('mint');
+  const [selectedMint, setSelectedMint] = useState('');
+  const [authorityType, setAuthorityType] = useState<AuthorityType>('mint');
 
   const handleRevoke = async () => {
     if (!isConnected || !publicKey || !signTransaction) {
@@ -47,20 +47,20 @@ export default function SolanaAuthorityTools() {
       let signature: string;
       const authorityPubkey = new PublicKey(publicKey);
       
-      if (revokeType === 'mint') {
-        signature = await revokeMintAuthority(connection, revokeMint, authorityPubkey, signTransaction);
-      } else if (revokeType === 'freeze') {
-        signature = await revokeFreezeAuthority(connection, revokeMint, authorityPubkey, signTransaction);
+      if (authorityType === 'mint') {
+        signature = await revokeMintAuthority(connection, selectedMint, authorityPubkey, signTransaction);
+      } else if (authorityType === 'freeze') {
+        signature = await revokeFreezeAuthority(connection, selectedMint, authorityPubkey, signTransaction);
       } else {
-        signature = await revokeUpdateAuthority(connection, revokeMint, authorityPubkey, signTransaction);
+        signature = await revokeUpdateAuthority(connection, selectedMint, authorityPubkey, signTransaction);
       }
 
       toast({
         title: 'Authority revoked!',
-        description: `Revoked ${revokeType} authority permanently. Signature: ${signature.slice(0, 8)}...`,
+        description: `Revoked ${authorityType} authority permanently. Signature: ${signature.slice(0, 8)}...`,
       });
 
-      setRevokeMint('');
+      setSelectedMint('');
     } catch (error: any) {
       toast({
         title: 'Revoke failed',
@@ -109,8 +109,8 @@ export default function SolanaAuthorityTools() {
               <TokenPicker
                 connection={connection}
                 walletAddress={publicKey}
-                onSelectToken={setRevokeMint}
-                selectedMint={revokeMint}
+                onSelectToken={setSelectedMint}
+                selectedMint={selectedMint}
               />
             ) : (
               <div className="p-4 border border-gray-700 rounded-lg bg-gray-900/50 text-center">
@@ -120,9 +120,9 @@ export default function SolanaAuthorityTools() {
             )}
 
             <div>
-              <label htmlFor="revoke-type" className="text-sm font-medium text-white mb-2 block">Authority Type</label>
-              <Select value={revokeType} onValueChange={(v: AuthorityType) => setRevokeType(v)}>
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white" data-testid="select-revoke-type">
+              <label htmlFor="authority-type" className="text-sm font-medium text-white mb-2 block">Authority Type</label>
+              <Select value={authorityType} onValueChange={(v: AuthorityType) => setAuthorityType(v)}>
+                <SelectTrigger className="bg-gray-900 border-gray-700 text-white" data-testid="select-authority-type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -132,22 +132,22 @@ export default function SolanaAuthorityTools() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-500 mt-2">
-                {revokeType === 'mint' && 'Prevents creating new tokens - establishes fixed supply'}
-                {revokeType === 'freeze' && 'Removes ability to freeze token accounts - required for exchange listings'}
-                {revokeType === 'update' && 'Locks token metadata permanently - name, symbol, and logo cannot be changed'}
+                {authorityType === 'mint' && 'Prevents creating new tokens - establishes fixed supply'}
+                {authorityType === 'freeze' && 'Removes ability to freeze token accounts - required for exchange listings'}
+                {authorityType === 'update' && 'Locks token metadata permanently - name, symbol, and logo cannot be changed'}
               </p>
             </div>
 
             <Button
               onClick={handleRevoke}
-              disabled={loading || !isConnected || !revokeMint}
+              disabled={loading || !isConnected || !selectedMint}
               className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50"
-              data-testid="button-revoke"
+              data-testid="button-revoke-authority"
             >
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Revoking Authority...
+                  Revoking {authorityType.charAt(0).toUpperCase() + authorityType.slice(1)} Authority...
                 </>
               ) : !isConnected ? (
                 <>
@@ -157,7 +157,7 @@ export default function SolanaAuthorityTools() {
               ) : (
                 <>
                   <Shield className="mr-2 h-4 w-4" />
-                  Revoke {revokeType.charAt(0).toUpperCase() + revokeType.slice(1)} Authority (Permanent)
+                  Revoke {authorityType.charAt(0).toUpperCase() + authorityType.slice(1)} Authority (Permanent)
                 </>
               )}
             </Button>
