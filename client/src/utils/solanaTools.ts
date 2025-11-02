@@ -254,6 +254,7 @@ export async function freezeTokenAccount(
   try {
     const mint = new PublicKey(mintAddress);
     let tokenAccountAddress: PublicKey;
+    let isTokenAccount = false;
     
     // Validate the mint has freeze authority
     const mintInfo = await getMint(connection, mint);
@@ -265,44 +266,54 @@ export async function freezeTokenAccount(
       throw new Error(`You are not the freeze authority for this token. Freeze authority: ${mintInfo.freezeAuthority.toBase58().slice(0, 8)}...`);
     }
     
-    // Try to determine if input is a wallet address or token account
+    // First, try to derive ATA assuming input is a wallet address
+    const inputPubkey = new PublicKey(accountToFreeze);
+    const derivedATA = await getAssociatedTokenAddress(mint, inputPubkey);
+    
+    console.log('🔍 Checking if input is wallet or token account...');
+    console.log('Input address:', accountToFreeze);
+    console.log('Derived ATA:', derivedATA.toBase58());
+    
+    // Try to fetch the derived ATA
     try {
-      const inputPubkey = new PublicKey(accountToFreeze);
-      const accountInfo = await getAccount(connection, inputPubkey);
+      const ataInfo = await getAccount(connection, derivedATA);
+      console.log('✅ Found token account at derived ATA');
+      console.log('Token account mint:', ataInfo.mint.toBase58());
+      console.log('Is frozen:', ataInfo.isFrozen);
       
-      // If we can get account info, it's a token account
-      if (accountInfo.mint.toBase58() !== mint.toBase58()) {
-        throw new Error('Token account does not belong to the specified mint');
-      }
-      if (accountInfo.isFrozen) {
+      if (ataInfo.isFrozen) {
         throw new Error('Token account is already frozen');
       }
-      tokenAccountAddress = inputPubkey;
-      console.log('✅ Using provided token account address');
-    } catch (error: any) {
-      if (error.message.includes('does not belong') || error.message.includes('already frozen')) {
-        throw error;
-      }
+      tokenAccountAddress = derivedATA;
+      isTokenAccount = true;
+    } catch (ataError: any) {
+      console.log('❌ Could not find account at derived ATA:', ataError.message);
       
-      // If it's not a token account, treat it as a wallet address and derive the ATA
-      console.log('📝 Input appears to be a wallet address, deriving token account...');
+      // If ATA doesn't exist, try the input address directly
       try {
-        const walletPubkey = new PublicKey(accountToFreeze);
-        tokenAccountAddress = await getAssociatedTokenAddress(mint, walletPubkey);
-        console.log('✅ Derived token account:', tokenAccountAddress.toBase58());
+        const directAccountInfo = await getAccount(connection, inputPubkey);
+        console.log('✅ Found token account at input address directly');
+        console.log('Token account mint:', directAccountInfo.mint.toBase58());
         
-        // Verify the derived token account exists
-        const derivedAccountInfo = await getAccount(connection, tokenAccountAddress);
-        if (derivedAccountInfo.isFrozen) {
+        if (directAccountInfo.mint.toBase58() !== mint.toBase58()) {
+          throw new Error('Token account does not belong to the specified mint');
+        }
+        if (directAccountInfo.isFrozen) {
           throw new Error('Token account is already frozen');
         }
-      } catch (deriveError: any) {
-        if (deriveError.message.includes('already frozen')) {
-          throw deriveError;
-        }
-        throw new Error('Could not find token account for this wallet. The holder may not have any tokens yet.');
+        tokenAccountAddress = inputPubkey;
+        isTokenAccount = true;
+      } catch (directError: any) {
+        console.log('❌ Could not find account at input address:', directError.message);
+        throw new Error('Could not find token account. Please verify:\n1. The holder has tokens from this mint\n2. The address is correct\n3. The token account is initialized');
       }
     }
+
+    if (!isTokenAccount) {
+      throw new Error('No valid token account found');
+    }
+
+    console.log('🎯 Using token account:', tokenAccountAddress.toBase58());
 
     const transaction = new Transaction();
 
@@ -326,7 +337,7 @@ export async function freezeTokenAccount(
 
     return signature;
   } catch (error: any) {
-    console.error('Error freezing account:', error);
+    console.error('❌ Error freezing account:', error);
     throw new Error(error.message || 'Failed to freeze token account');
   }
 }
@@ -345,6 +356,7 @@ export async function unfreezeTokenAccount(
   try {
     const mint = new PublicKey(mintAddress);
     let tokenAccountAddress: PublicKey;
+    let isTokenAccount = false;
     
     // Validate the mint has freeze authority
     const mintInfo = await getMint(connection, mint);
@@ -356,44 +368,54 @@ export async function unfreezeTokenAccount(
       throw new Error(`You are not the freeze authority for this token. Freeze authority: ${mintInfo.freezeAuthority.toBase58().slice(0, 8)}...`);
     }
     
-    // Try to determine if input is a wallet address or token account
+    // First, try to derive ATA assuming input is a wallet address
+    const inputPubkey = new PublicKey(accountToUnfreeze);
+    const derivedATA = await getAssociatedTokenAddress(mint, inputPubkey);
+    
+    console.log('🔍 Checking if input is wallet or token account...');
+    console.log('Input address:', accountToUnfreeze);
+    console.log('Derived ATA:', derivedATA.toBase58());
+    
+    // Try to fetch the derived ATA
     try {
-      const inputPubkey = new PublicKey(accountToUnfreeze);
-      const accountInfo = await getAccount(connection, inputPubkey);
+      const ataInfo = await getAccount(connection, derivedATA);
+      console.log('✅ Found token account at derived ATA');
+      console.log('Token account mint:', ataInfo.mint.toBase58());
+      console.log('Is frozen:', ataInfo.isFrozen);
       
-      // If we can get account info, it's a token account
-      if (accountInfo.mint.toBase58() !== mint.toBase58()) {
-        throw new Error('Token account does not belong to the specified mint');
-      }
-      if (!accountInfo.isFrozen) {
+      if (!ataInfo.isFrozen) {
         throw new Error('Token account is not frozen');
       }
-      tokenAccountAddress = inputPubkey;
-      console.log('✅ Using provided token account address');
-    } catch (error: any) {
-      if (error.message.includes('does not belong') || error.message.includes('not frozen')) {
-        throw error;
-      }
+      tokenAccountAddress = derivedATA;
+      isTokenAccount = true;
+    } catch (ataError: any) {
+      console.log('❌ Could not find account at derived ATA:', ataError.message);
       
-      // If it's not a token account, treat it as a wallet address and derive the ATA
-      console.log('📝 Input appears to be a wallet address, deriving token account...');
+      // If ATA doesn't exist, try the input address directly
       try {
-        const walletPubkey = new PublicKey(accountToUnfreeze);
-        tokenAccountAddress = await getAssociatedTokenAddress(mint, walletPubkey);
-        console.log('✅ Derived token account:', tokenAccountAddress.toBase58());
+        const directAccountInfo = await getAccount(connection, inputPubkey);
+        console.log('✅ Found token account at input address directly');
+        console.log('Token account mint:', directAccountInfo.mint.toBase58());
         
-        // Verify the derived token account exists and is frozen
-        const derivedAccountInfo = await getAccount(connection, tokenAccountAddress);
-        if (!derivedAccountInfo.isFrozen) {
+        if (directAccountInfo.mint.toBase58() !== mint.toBase58()) {
+          throw new Error('Token account does not belong to the specified mint');
+        }
+        if (!directAccountInfo.isFrozen) {
           throw new Error('Token account is not frozen');
         }
-      } catch (deriveError: any) {
-        if (deriveError.message.includes('not frozen')) {
-          throw deriveError;
-        }
-        throw new Error('Could not find token account for this wallet. The holder may not have any tokens yet.');
+        tokenAccountAddress = inputPubkey;
+        isTokenAccount = true;
+      } catch (directError: any) {
+        console.log('❌ Could not find account at input address:', directError.message);
+        throw new Error('Could not find token account. Please verify:\n1. The holder has tokens from this mint\n2. The address is correct\n3. The token account is initialized');
       }
     }
+
+    if (!isTokenAccount) {
+      throw new Error('No valid token account found');
+    }
+
+    console.log('🎯 Using token account:', tokenAccountAddress.toBase58());
 
     const transaction = new Transaction();
 
@@ -417,7 +439,7 @@ export async function unfreezeTokenAccount(
 
     return signature;
   } catch (error: any) {
-    console.error('Error unfreezing account:', error);
+    console.error('❌ Error unfreezing account:', error);
     throw new Error(error.message || 'Failed to unfreeze token account');
   }
 }
