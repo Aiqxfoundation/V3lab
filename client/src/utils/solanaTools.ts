@@ -343,3 +343,54 @@ export async function isAccountFrozen(
     return false;
   }
 }
+
+/**
+ * Interface for token account information
+ */
+export interface WalletToken {
+  mintAddress: string;
+  balance: string;
+  decimals: number;
+  tokenAccountAddress: string;
+  name?: string;
+  symbol?: string;
+  image?: string;
+}
+
+/**
+ * Fetch all SPL tokens owned by a wallet
+ */
+export async function getWalletTokens(
+  connection: Connection,
+  owner: PublicKey
+): Promise<WalletToken[]> {
+  try {
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+      owner,
+      { programId: TOKEN_PROGRAM_ID }
+    );
+
+    const tokens: WalletToken[] = [];
+
+    for (const { pubkey, account } of tokenAccounts.value) {
+      const parsedInfo = account.data.parsed.info;
+      const mintAddress = parsedInfo.mint;
+      const balance = parsedInfo.tokenAmount.uiAmountString;
+      const decimals = parsedInfo.tokenAmount.decimals;
+
+      if (parseFloat(balance) > 0) {
+        tokens.push({
+          mintAddress,
+          balance,
+          decimals,
+          tokenAccountAddress: pubkey.toBase58(),
+        });
+      }
+    }
+
+    return tokens;
+  } catch (error) {
+    console.error('Error fetching wallet tokens:', error);
+    throw new Error('Failed to fetch wallet tokens');
+  }
+}

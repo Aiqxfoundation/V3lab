@@ -1,17 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PublicKey } from '@solana/web3.js';
 import { useSolanaWallet } from '@/contexts/SolanaWalletContext';
 import { getSolanaConnection } from '@/utils/solanaDeployer';
 import { freezeTokenAccount, unfreezeTokenAccount } from '@/utils/solanaTools';
+import { getTokenAuthorities } from '@/utils/solanaAuthority';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import MainLayout from '@/components/MainLayout';
-import { Snowflake, Loader2, Wallet } from 'lucide-react';
+import { Snowflake, Loader2, Wallet, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useParams } from 'wouter';
+import { SolanaTokenPicker } from '@/components/SolanaTokenPicker';
 
 type SolanaNetwork = 'testnet' | 'mainnet-beta';
 
@@ -29,12 +32,52 @@ export default function SolanaFreezeAccount() {
   
   const network = getNetworkFromChainId(chainId);
   const [loading, setLoading] = useState(false);
+  const [checkingAuthority, setCheckingAuthority] = useState(false);
   const [mintAddress, setMintAddress] = useState('');
   const [accountAddress, setAccountAddress] = useState('');
+  const [freezeAuthority, setFreezeAuthority] = useState<string | null>(null);
+  const [hasFreezeAuthority, setHasFreezeAuthority] = useState(false);
+
+  useEffect(() => {
+    const checkFreezeAuthority = async () => {
+      if (!mintAddress || !publicKey) {
+        setFreezeAuthority(null);
+        setHasFreezeAuthority(false);
+        return;
+      }
+
+      try {
+        setCheckingAuthority(true);
+        const connection = getSolanaConnection(network);
+        const authorities = await getTokenAuthorities(connection, mintAddress);
+        setFreezeAuthority(authorities.freezeAuthority);
+        setHasFreezeAuthority(
+          authorities.freezeAuthority?.toLowerCase() === publicKey.toLowerCase()
+        );
+      } catch (error) {
+        console.error('Error checking freeze authority:', error);
+        setFreezeAuthority(null);
+        setHasFreezeAuthority(false);
+      } finally {
+        setCheckingAuthority(false);
+      }
+    };
+
+    checkFreezeAuthority();
+  }, [mintAddress, publicKey, network]);
 
   const handleFreeze = async (action: 'freeze' | 'unfreeze') => {
     if (!isConnected || !publicKey || !signTransaction) {
       toast({ title: 'Wallet not connected', variant: 'destructive' });
+      return;
+    }
+
+    if (!hasFreezeAuthority) {
+      toast({
+        title: 'No freeze authority',
+        description: 'You do not have freeze authority for this token',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -56,7 +99,6 @@ export default function SolanaFreezeAccount() {
         description: `Signature: ${signature.slice(0, 8)}...`,
       });
 
-      setMintAddress('');
       setAccountAddress('');
     } catch (error: any) {
       toast({
@@ -99,17 +141,36 @@ export default function SolanaFreezeAccount() {
             </TabsList>
             
             <TabsContent value="freeze" className="space-y-4">
-              <div>
-                <Label htmlFor="freeze-mint" className="text-white">Token Mint Address</Label>
-                <Input
-                  id="freeze-mint"
-                  value={mintAddress}
-                  onChange={(e) => setMintAddress(e.target.value)}
-                  placeholder="Enter token mint address"
-                  className="bg-gray-900 border-gray-700 text-white"
-                  data-testid="input-freeze-mint"
-                />
-              </div>
+              <SolanaTokenPicker
+                value={mintAddress}
+                onChange={setMintAddress}
+                label="Token Mint Address"
+                placeholder="Enter or select token mint address"
+                publicKey={publicKey}
+                network={network}
+                testId="input-freeze-mint"
+              />
+
+              {mintAddress && (
+                <Alert className={hasFreezeAuthority ? 'bg-green-900/20 border-green-500/50' : 'bg-red-900/20 border-red-500/50'}>
+                  {hasFreezeAuthority ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-red-500" />
+                  )}
+                  <AlertDescription className={hasFreezeAuthority ? 'text-green-200' : 'text-red-200'}>
+                    {checkingAuthority ? (
+                      'Checking freeze authority...'
+                    ) : hasFreezeAuthority ? (
+                      'You have freeze authority for this token'
+                    ) : freezeAuthority ? (
+                      `Freeze authority: ${freezeAuthority.slice(0, 8)}...${freezeAuthority.slice(-8)}`
+                    ) : (
+                      'No freeze authority set for this token'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div>
                 <Label htmlFor="freeze-account" className="text-white">Account to Freeze</Label>
@@ -125,7 +186,7 @@ export default function SolanaFreezeAccount() {
 
               <Button
                 onClick={() => handleFreeze('freeze')}
-                disabled={loading || !isConnected || !mintAddress || !accountAddress}
+                disabled={loading || !isConnected || !mintAddress || !accountAddress || !hasFreezeAuthority}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
                 data-testid="button-freeze"
               >
@@ -149,17 +210,36 @@ export default function SolanaFreezeAccount() {
             </TabsContent>
 
             <TabsContent value="unfreeze" className="space-y-4">
-              <div>
-                <Label htmlFor="unfreeze-mint" className="text-white">Token Mint Address</Label>
-                <Input
-                  id="unfreeze-mint"
-                  value={mintAddress}
-                  onChange={(e) => setMintAddress(e.target.value)}
-                  placeholder="Enter token mint address"
-                  className="bg-gray-900 border-gray-700 text-white"
-                  data-testid="input-unfreeze-mint"
-                />
-              </div>
+              <SolanaTokenPicker
+                value={mintAddress}
+                onChange={setMintAddress}
+                label="Token Mint Address"
+                placeholder="Enter or select token mint address"
+                publicKey={publicKey}
+                network={network}
+                testId="input-unfreeze-mint"
+              />
+
+              {mintAddress && (
+                <Alert className={hasFreezeAuthority ? 'bg-green-900/20 border-green-500/50' : 'bg-red-900/20 border-red-500/50'}>
+                  {hasFreezeAuthority ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-red-500" />
+                  )}
+                  <AlertDescription className={hasFreezeAuthority ? 'text-green-200' : 'text-red-200'}>
+                    {checkingAuthority ? (
+                      'Checking freeze authority...'
+                    ) : hasFreezeAuthority ? (
+                      'You have freeze authority for this token'
+                    ) : freezeAuthority ? (
+                      `Freeze authority: ${freezeAuthority.slice(0, 8)}...${freezeAuthority.slice(-8)}`
+                    ) : (
+                      'No freeze authority set for this token'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div>
                 <Label htmlFor="unfreeze-account" className="text-white">Account to Unfreeze</Label>
@@ -175,7 +255,7 @@ export default function SolanaFreezeAccount() {
 
               <Button
                 onClick={() => handleFreeze('unfreeze')}
-                disabled={loading || !isConnected || !mintAddress || !accountAddress}
+                disabled={loading || !isConnected || !mintAddress || !accountAddress || !hasFreezeAuthority}
                 className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50"
                 data-testid="button-unfreeze"
               >

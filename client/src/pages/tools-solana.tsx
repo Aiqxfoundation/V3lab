@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PublicKey } from '@solana/web3.js';
 import { useSolanaWallet } from '@/contexts/SolanaWalletContext';
 import { getSolanaConnection } from '@/utils/solanaDeployer';
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Send, UserPlus, UserX, Image, Plus, Flame, Snowflake, Wallet, Loader2, AlertCircle, Shield } from 'lucide-react';
+import { Send, UserPlus, UserX, Image, Plus, Flame, Snowflake, Wallet, Loader2, AlertCircle, Shield, CheckCircle2 } from 'lucide-react';
 import { useParams } from 'wouter';
 import {
   multisendTokens,
@@ -22,7 +22,8 @@ import {
   freezeTokenAccount,
   unfreezeTokenAccount,
 } from '@/utils/solanaTools';
-import { revokeMintAuthority, revokeFreezeAuthority } from '@/utils/solanaAuthority';
+import { revokeMintAuthority, revokeFreezeAuthority, revokeUpdateAuthority, getTokenAuthorities } from '@/utils/solanaAuthority';
+import { SolanaTokenPicker } from '@/components/SolanaTokenPicker';
 
 type SolanaNetwork = 'testnet' | 'mainnet-beta';
 
@@ -41,6 +42,11 @@ export default function ToolsSolana() {
   
   const [network, setNetwork] = useState<SolanaNetwork>(getNetworkFromChainId(chainId));
   const [loading, setLoading] = useState(false);
+
+  // Freeze authority checking state
+  const [checkingAuthority, setCheckingAuthority] = useState(false);
+  const [freezeAuthority, setFreezeAuthority] = useState<string | null>(null);
+  const [hasFreezeAuthority, setHasFreezeAuthority] = useState(false);
 
   // Multisender state
   const [multisendMint, setMultisendMint] = useState('');
@@ -70,13 +76,41 @@ export default function ToolsSolana() {
 
   // Revoke Authority state
   const [revokeMint, setRevokeMint] = useState('');
-  const [revokeType, setRevokeType] = useState<'mint' | 'freeze'>('mint');
+  const [revokeType, setRevokeType] = useState<'mint' | 'freeze' | 'update'>('mint');
 
   // Update Metadata state
   const [metadataMint, setMetadataMint] = useState('');
   const [metadataName, setMetadataName] = useState('');
   const [metadataSymbol, setMetadataSymbol] = useState('');
   const [metadataUri, setMetadataUri] = useState('');
+
+  useEffect(() => {
+    const checkFreezeAuthority = async () => {
+      if (!freezeMint || !publicKey) {
+        setFreezeAuthority(null);
+        setHasFreezeAuthority(false);
+        return;
+      }
+
+      try {
+        setCheckingAuthority(true);
+        const connection = getSolanaConnection(network);
+        const authorities = await getTokenAuthorities(connection, freezeMint);
+        setFreezeAuthority(authorities.freezeAuthority);
+        setHasFreezeAuthority(
+          authorities.freezeAuthority?.toLowerCase() === publicKey.toLowerCase()
+        );
+      } catch (error) {
+        console.error('Error checking freeze authority:', error);
+        setFreezeAuthority(null);
+        setHasFreezeAuthority(false);
+      } finally {
+        setCheckingAuthority(false);
+      }
+    };
+
+    checkFreezeAuthority();
+  }, [freezeMint, publicKey, network]);
 
   const handleMultisend = async () => {
     if (!isConnected || !publicKey || !signTransaction) {
@@ -207,6 +241,15 @@ export default function ToolsSolana() {
       return;
     }
 
+    if (!hasFreezeAuthority) {
+      toast({
+        title: 'No freeze authority',
+        description: 'You do not have freeze authority for this token',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       setLoading(true);
       const connection = getSolanaConnection(network);
@@ -280,13 +323,20 @@ export default function ToolsSolana() {
       setLoading(true);
       const connection = getSolanaConnection(network);
 
-      const signature = revokeType === 'mint'
-        ? await revokeMintAuthority(connection, revokeMint, new PublicKey(publicKey), signTransaction)
-        : await revokeFreezeAuthority(connection, revokeMint, new PublicKey(publicKey), signTransaction);
+      let signature: string;
+      if (revokeType === 'mint') {
+        signature = await revokeMintAuthority(connection, revokeMint, new PublicKey(publicKey), signTransaction);
+      } else if (revokeType === 'freeze') {
+        signature = await revokeFreezeAuthority(connection, revokeMint, new PublicKey(publicKey), signTransaction);
+      } else {
+        signature = await revokeUpdateAuthority(connection, revokeMint, new PublicKey(publicKey), signTransaction);
+      }
+
+      const authorityName = revokeType === 'mint' ? 'Mint' : revokeType === 'freeze' ? 'Freeze' : 'Update';
 
       toast({
         title: 'Authority revoked!',
-        description: `${revokeType === 'mint' ? 'Mint' : 'Freeze'} authority permanently revoked. Signature: ${signature.slice(0, 8)}...`,
+        description: `${authorityName} authority permanently revoked. Signature: ${signature.slice(0, 8)}...`,
       });
 
       setRevokeMint('');
@@ -440,15 +490,15 @@ export default function ToolsSolana() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label className="text-white">Token Mint Address</Label>
-                <Input
-                  value={multisendMint}
-                  onChange={(e) => setMultisendMint(e.target.value)}
-                  placeholder="Enter mint address"
-                  data-testid="input-multisend-mint"
-                />
-              </div>
+              <SolanaTokenPicker
+                value={multisendMint}
+                onChange={setMultisendMint}
+                label="Token Mint Address"
+                placeholder="Enter or select token mint address"
+                publicKey={publicKey}
+                network={network}
+                testId="input-multisend-mint"
+              />
               <div>
                 <Label className="text-white">Token Decimals</Label>
                 <Input
@@ -505,15 +555,15 @@ export default function ToolsSolana() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label className="text-white">Token Mint Address</Label>
-                  <Input
-                    value={mintMint}
-                    onChange={(e) => setMintMint(e.target.value)}
-                    placeholder="Enter mint address"
-                    data-testid="input-mint-mint"
-                  />
-                </div>
+                <SolanaTokenPicker
+                  value={mintMint}
+                  onChange={setMintMint}
+                  label="Token Mint Address"
+                  placeholder="Enter or select token mint address"
+                  publicKey={publicKey}
+                  network={network}
+                  testId="input-mint-mint"
+                />
                 <div>
                   <Label className="text-white">Destination Address</Label>
                   <Input
@@ -575,15 +625,15 @@ export default function ToolsSolana() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label className="text-white">Token Mint Address</Label>
-                  <Input
-                    value={burnMint}
-                    onChange={(e) => setBurnMint(e.target.value)}
-                    placeholder="Enter mint address"
-                    data-testid="input-burn-mint"
-                  />
-                </div>
+                <SolanaTokenPicker
+                  value={burnMint}
+                  onChange={setBurnMint}
+                  label="Token Mint Address"
+                  placeholder="Enter or select token mint address"
+                  publicKey={publicKey}
+                  network={network}
+                  testId="input-burn-mint"
+                />
                 <div>
                   <Label className="text-white">Amount</Label>
                   <Input
@@ -642,15 +692,37 @@ export default function ToolsSolana() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label className="text-white">Token Mint Address</Label>
-                <Input
-                  value={freezeMint}
-                  onChange={(e) => setFreezeMint(e.target.value)}
-                  placeholder="Enter mint address"
-                  data-testid="input-freeze-mint"
-                />
-              </div>
+              <SolanaTokenPicker
+                value={freezeMint}
+                onChange={setFreezeMint}
+                label="Token Mint Address"
+                placeholder="Enter or select token mint address"
+                publicKey={publicKey}
+                network={network}
+                testId="input-freeze-mint"
+              />
+
+              {freezeMint && (
+                <Alert className={hasFreezeAuthority ? 'bg-green-900/20 border-green-500/50' : 'bg-red-900/20 border-red-500/50'}>
+                  {hasFreezeAuthority ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-red-500" />
+                  )}
+                  <AlertDescription className={hasFreezeAuthority ? 'text-green-200' : 'text-red-200'}>
+                    {checkingAuthority ? (
+                      'Checking freeze authority...'
+                    ) : hasFreezeAuthority ? (
+                      'You have freeze authority for this token'
+                    ) : freezeAuthority ? (
+                      `Freeze authority: ${freezeAuthority.slice(0, 8)}...${freezeAuthority.slice(-8)}`
+                    ) : (
+                      'No freeze authority set for this token'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div>
                 <Label className="text-white">Account Address</Label>
                 <Input
@@ -672,7 +744,7 @@ export default function ToolsSolana() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleFreezeUnfreeze} disabled={loading || !isConnected} className="w-full disabled:opacity-50" data-testid="button-freeze-unfreeze">
+              <Button onClick={handleFreezeUnfreeze} disabled={loading || !isConnected || !hasFreezeAuthority} className="w-full disabled:opacity-50" data-testid="button-freeze-unfreeze">
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -682,6 +754,11 @@ export default function ToolsSolana() {
                   <>
                     <Wallet className="h-4 w-4 mr-2" />
                     Connect Wallet to {freezeAction === 'freeze' ? 'Freeze' : 'Unfreeze'}
+                  </>
+                ) : !hasFreezeAuthority ? (
+                  <>
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    No Freeze Authority
                   </>
                 ) : (
                   <>
@@ -709,15 +786,15 @@ export default function ToolsSolana() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label className="text-white">Token Mint Address</Label>
-                  <Input
-                    value={transferMint}
-                    onChange={(e) => setTransferMint(e.target.value)}
-                    placeholder="Enter mint address"
-                    data-testid="input-transfer-mint"
-                  />
-                </div>
+                <SolanaTokenPicker
+                  value={transferMint}
+                  onChange={setTransferMint}
+                  label="Token Mint Address"
+                  placeholder="Enter or select token mint address"
+                  publicKey={publicKey}
+                  network={network}
+                  testId="input-transfer-mint"
+                />
                 <div>
                   <Label className="text-white">Authority Type</Label>
                   <Select value={transferType} onValueChange={(v) => setTransferType(v as 'mint' | 'freeze')}>
@@ -768,28 +845,29 @@ export default function ToolsSolana() {
                   Revoke Authority
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Permanently revoke mint or freeze authority
+                  Permanently revoke mint, freeze, or update authority
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label className="text-white">Token Mint Address</Label>
-                  <Input
-                    value={revokeMint}
-                    onChange={(e) => setRevokeMint(e.target.value)}
-                    placeholder="Enter mint address"
-                    data-testid="input-revoke-mint"
-                  />
-                </div>
+                <SolanaTokenPicker
+                  value={revokeMint}
+                  onChange={setRevokeMint}
+                  label="Token Mint Address"
+                  placeholder="Enter or select token mint address"
+                  publicKey={publicKey}
+                  network={network}
+                  testId="input-revoke-mint"
+                />
                 <div>
                   <Label className="text-white">Authority Type</Label>
-                  <Select value={revokeType} onValueChange={(v) => setRevokeType(v as 'mint' | 'freeze')}>
+                  <Select value={revokeType} onValueChange={(v) => setRevokeType(v as 'mint' | 'freeze' | 'update')}>
                     <SelectTrigger data-testid="select-revoke-type">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="mint">Mint Authority</SelectItem>
                       <SelectItem value="freeze">Freeze Authority</SelectItem>
+                      <SelectItem value="update">Update Authority</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -832,15 +910,15 @@ export default function ToolsSolana() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label className="text-white">Token Mint Address</Label>
-                <Input
-                  value={metadataMint}
-                  onChange={(e) => setMetadataMint(e.target.value)}
-                  placeholder="Enter mint address"
-                  data-testid="input-metadata-mint"
-                />
-              </div>
+              <SolanaTokenPicker
+                value={metadataMint}
+                onChange={setMetadataMint}
+                label="Token Mint Address"
+                placeholder="Enter or select token mint address"
+                publicKey={publicKey}
+                network={network}
+                testId="input-metadata-mint"
+              />
               <div>
                 <Label className="text-white">Token Name</Label>
                 <Input
